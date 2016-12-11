@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+  font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-draw_hring: crispEdges;
+}
+
+.brush .extent {
+  stroke: #fff;
+  fill-opacity: .125;
+  shape-draw_hring: crispEdges;
+}
+
+.hr_line{
+    fill: none;    
+    stroke-dasharray: 8 6;
+    stroke: black;
+    opacity: 0.2;
+    stroke-width: 2;
+}
+
+.hbp_line{
+    fill: none;    
+    stroke-dasharray: 8 6;
+    stroke: black;
+    opacity: 0.2;
+    stroke-width: 2;
+}
+
+.lbp_line{
+    fill: none;    
+    stroke-dasharray: 8 6;
+    stroke: black;
+    opacity: 0.2;
+    stroke-width: 2;
+}
+
+.line{
+    fill: none;    
+    stroke: black;
+    stroke-width: 2;
+}
+
+.ct2_line{
+    fill: none;    
+    stroke: green;
+    stroke-width: 1.5;
+}
+
+.ct1_line{
+    fill: none;    
+    stroke: steelblue;
+    stroke-width: 1;
+}
+
+.hr_circle {
+  fill: #fff;
+  stroke: steelblue;
+  /*stroke-width: 1;*/
+}
+
+.hbp_circle {
+  fill: #fff;
+  /*stroke: green;*/
+  /*stroke-width: 1;*/
+}
+
+.lbp_circle {
+  fill: #fff;
+  /*stroke: green;*/
+  /*stroke-width: 1;*/
+}
+
+.hl_circle {
+  fill: #fff;
+  /*stroke: green;*/
+  stroke-width: 1;
+}
+
+
+.bp_line{
+    fill: none;    
+    /*stroke-dasharray: 8 6;*/
+    stroke: green;
+    opacity: 0.5;
+    stroke-width: 2;
+}
+
+.bsh_line{
+    fill: none;    
+    /*stroke-dasharray: 8 6;*/
+    stroke: salmon;
+    opacity: 0.5;
+    stroke-width: 2;
+}
+
+.bsl_line{
+    fill: none;    
+    /*stroke-dasharray: 8 6;*/
+    stroke: salmon;
+    opacity: 0.5;
+    stroke-width: 2;
+}
+
+#tooltip {
+  position: absolute;
+  width: 200px;
+  height: auto;
+  padding: 10px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+      
+#tooltip.hidden {
+  display: none;
+}
+
+#tooltip p {
+  margin: 0;
+  font-family: sans-serif;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+</style>
+<body>
+<div id="tooltip" class="hidden">
+  <p><span id="value">100</span></p>
+  <p><span id="time">100</span></p>
+  <p><span id="pill"></span></p>
+</div>
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+
+var margin = {top: 10, right: 10, bottom: 100, left: 40},
+    margin2 = {top: 430, right: 10, bottom: 20, left: 40},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom,
+    height2 = 500 - margin2.top - margin2.bottom;
+
+var parseDate = d3.time.format("%Y%m%d%H:%M").parse;
+var min_time, max_time;
+var x = d3.time.scale().range([0, width]),
+    x2 = d3.time.scale().range([0, width]),
+    y = d3.scale.linear().range([height, 0]),
+    y2 = d3.scale.linear().range([height2, 0]);
+
+var xAxis = d3.svg.axis().scale(x).orient("bottom"),
+    xAxis2 = d3.svg.axis().scale(x2).orient("bottom"),
+    yAxis = d3.svg.axis().scale(y).orient("left");
+
+var brush = d3.svg.brush()
+    .x(x2)
+    .on("brush", brushed);
+
+var hr_line = d3.svg.line().interpolate("linear")
+                .x(function(d){ return x(d.date);}).y(function(d){return y(d.心率);});
+var hr_line2 = d3.svg.line().interpolate("linear")
+                .x(function(d){ return x2(d.date);}).y(function(d){return y2(d.心率);});
+
+var hbp_line = d3.svg.line().interpolate("linear")
+                .x(function(d){ return x(d.date);}).y(function(d){return y(d.高压);});
+var hbp_line2 = d3.svg.line().interpolate("linear")
+                .x(function(d){ return x2(d.date);}).y(function(d){return y2(d.高压);});
+
+var lbp_line = d3.svg.line().interpolate("linear")
+                .x(function(d){ return x(d.date);}).y(function(d){return y(d.低压);});
+var lbp_line2 = d3.svg.line().interpolate("linear")
+                .x(function(d){ return x2(d.date);}).y(function(d){return y2(d.低压);});
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom);
+
+svg.append("defs").append("clipPath").attr("id", "clip")
+   .append("rect").attr("width", width).attr("height", height);
+
+var focus = svg.append("g").attr("class", "focus")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var context = svg.append("g").attr("class", "context").attr("clip-path","url(#clip)")
+    .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+var dot = svg.append("g").attr("clip-path","url(#clip)").attr("class", "dot")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var hr_dot = dot.selectAll(".hr_circle");
+var hbp_dot = dot.selectAll(".hbp_circle");
+var lbp_dot = dot.selectAll(".lbp_circle");
+var hl_dot = context.selectAll(".hl_circle");
+
+var bp_line = focus.selectAll(".bp_line");
+
+var bs_hbp = focus.selectAll(".bsh_line");
+var bs_lbp = focus.selectAll(".bp_line");
+
+d3.csv("https://raw.githubusercontent.com/Pricassss/R2/master/test2.csv", type, function(error, data) {
+  //d3.csv("test2.csv", type, function(error, data) {
+  x.domain(d3.extent(data.map(function(d) { return d.date; })));
+  y.domain([0, d3.max(data.map(function(d) {return d.心率 > d.高压 ? d.心率:d.高压; }))]);
+  x2.domain(x.domain());  y2.domain(y.domain());
+
+
+  //draw_hr(data);
+  focus.append("path").datum(data).attr("class", "hr_line").attr("d", hr_line).attr("clip-path","url(#clip)");  
+  focus.append("path").datum(data).attr("class", "hbp_line").attr("d", hbp_line).attr("clip-path","url(#clip)");  
+  focus.append("path").datum(data).attr("class", "lbp_line").attr("d", lbp_line).attr("clip-path","url(#clip)"); 
+
+  bp_line = bp_line.data(data); bp_line.enter().append("line").attr("class", "bp_line")
+  .attr("x1", function(d) { return x(d.date); }).attr("x2", function(d) { return x(d.date); })
+  .attr("y1", function(d) { return y(d.高压); }).attr("y2", function(d) { return y(d.低压); });
+
+  bs_hbp = bs_hbp.data([x.domain()]); bs_hbp.enter().append("line").attr("class", "bsh_line")
+  .attr("x1", function(d) { return x(d[0]); }).attr("x2", function(d) { return x(d[1]); })
+  .attr("y1", function(d) { return y(125); }).attr("y2", function(d) { return y(125); });
+  bs_lbp = bs_lbp.data([x.domain()]); bs_lbp.enter().append("line").attr("class", "bsh_line")
+  .attr("x1", function(d) { return x(d[0]); }).attr("x2", function(d) { return x(d[1]); })
+  .attr("y1", function(d) { return y(75); }).attr("y2", function(d) { return y(75); });
+
+  hr_dot = hr_dot.data(data); hr_dot.enter().append("rect").attr("class", "hr_circle")
+  .attr("x", function(d) { return x(d.date)-4.5; }).attr("y", function(d) { return y(d.心率)-4.5; })
+  .attr("width", 9).attr("height", 9).on("mouseover",hr_over).on("mouseout",hr_out);
+  hbp_dot = hbp_dot.data(data); hbp_dot.enter().append("circle").attr("class", "hbp_circle")
+  .attr("stroke", function(d){return d.处理 ? "red":"green"}).attr("r", 4.5)
+  .on("mouseover",hr_over).on("mouseout",hr_out)
+  .attr("cx", function(d) { return x(d.date); }).attr("cy", function(d) { return y(d.高压); });
+  lbp_dot = lbp_dot.data(data); lbp_dot.enter().append("circle").attr("class", "lbp_circle")
+  .attr("stroke", function(d){return d.处理 ? "red":"green"}).attr("r", 4.5)
+  .on("mouseover",hr_over).on("mouseout",hr_out)
+  .attr("cx", function(d) { return x(d.date); }).attr("cy", function(d) { return y(d.低压); });
+
+
+  focus.append("g").attr("class", "x axis").call(xAxis).attr("transform", "translate(0," + height + ")");
+  focus.append("g").attr("class", "y axis").call(yAxis);
+
+  //draw_hr_brush(data);
+  context.append("path").datum(data).attr("class", "ct1_line").attr("d", hr_line2);  
+  context.append("path").datum(data).attr("class", "ct2_line").attr("d", hbp_line2); 
+  context.append("path").datum(data).attr("class", "ct2_line").attr("d", lbp_line2); 
+  hl_dot = hl_dot.data(data); hl_dot.enter().append("circle").attr("class", "hl_circle")
+  .attr("stroke", function(d){return d.处理 ? "red":"green"}).attr("r", 3)
+  .attr("cx", function(d) { return x2(d.date); }).attr("cy", function(d) { return y2(d.高压); });
+  context.append("g").attr("class", "x axis").call(xAxis2).attr("transform", "translate(0," + height2 + ")");
+  context.append("g").attr("class", "x brush")
+  .call(brush).selectAll("rect").attr("y",-6).attr("height", height2 + 7);
+});
+
+function brushed() {
+  x.domain(brush.empty() ? x2.domain() : brush.extent());
+  focus.select(".hr_line").attr("d", hr_line);
+  focus.select(".hbp_line").attr("d", hbp_line);
+  focus.select(".lbp_line").attr("d", lbp_line);
+  hr_dot.attr("x", function(d) { return x(d.date)-4.5; }).attr("y", function(d) { return y(d.心率)-4.5; });
+  hbp_dot.attr("cx", function(d) { return x(d.date); }).attr("cy", function(d) { return y(d.高压); });
+  lbp_dot.attr("cx", function(d) { return x(d.date); }).attr("cy", function(d) { return y(d.低压); });
+  hl_dot.attr("cx", function(d) { return x2(d.date); }).attr("cy", function(d) { return y2(d.高压); });
+  bp_line.attr("x1", function(d) { return x(d.date); }).attr("x2", function(d) { return x(d.date); })
+  .attr("y1", function(d) { return y(d.高压); }).attr("y2", function(d) { return y(d.低压); });
+  focus.select(".x.axis").call(xAxis);
+}
+
+function type(d,i) {
+  d.id = i;
+  d.date = parseDate(d.日期+d.时间);
+  d.心率 = +d.心率;
+  d.高压 = +d.高压;
+  d.低压 = +d.低压;
+  return d;
+}
+
+function draw_hr(data){
+  focus.append("path").datum(data).attr("class", "line").attr("d", line);  
+}
+
+function draw_hr_brush(data){
+  context.append("path").datum(data).attr("class", "line").attr("d", line2);  
+}
+
+function hr_over(d){
+  console.log(d3.select(this).x)
+  hr_dot.filter(function(l){return l.id == d.id}).attr("stroke-width", 3);
+  hbp_dot.filter(function(l){return l.id == d.id}).attr("stroke-width", 3);
+  lbp_dot.filter(function(l){return l.id == d.id}).attr("stroke-width", 3);
+  var xPosition = d3.event.x ;  var yPosition = d3.event.y + 20 ;
+  //Update the tooltip position and value
+  var stext1 = "时间：" + d.日期 + "-" + d.时间;
+  var stext2 = "血压：" + d.高压 + "/" + d.低压 + "      心率：" + d.心率;
+  d3.select("#tooltip").style("left", xPosition + "px").style("top", yPosition + "px")
+    .select("#value").text(stext1); d3.select("#tooltip").select("#time").text(stext2);
+  if (d.处理) {d3.select("#tooltip").select("#pill").text(d.处理);};
+  d3.select("#tooltip").classed("hidden", false);
+}
+function hr_out(d) {
+  hr_dot.attr("stroke-width", 1);
+  hbp_dot.attr("stroke-width", 1);
+  lbp_dot.attr("stroke-width", 1);
+  d3.select("#tooltip").select("#value").text(""); 
+  d3.select("#tooltip").select("#time").text("");
+  d3.select("#tooltip").select("#pill").text("");
+  d3.select("#tooltip").classed("hidden", false);
+  d3.select("#tooltip").classed("hidden", true);
+}
+
+</script>
